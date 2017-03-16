@@ -1,0 +1,291 @@
+#!/usr/bin/gawk -f
+BEGIN {
+  PROCINFO["sorted_in"] = "@val_str_asc"
+  FS = "[><]"
+  enc = "<!DOCTYPE html><html><head><meta charset=\"utf-8\"/><title> %s </title><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"/></head><body>"
+  end = "</body></html>"
+  fmt = "<li> <a href='%s'> %s </a></li>"
+}
+
+$2 ~ /EXTRACTO id/{
+  split($2,s2,"\"")1
+  extracto = s2[2];
+}
+
+
+$2 ~ /MES_EMISSAO/{
+  mes = $3;
+}
+
+
+$2 ~ /CLIENTE id/{
+  split($2,s2,"\"")
+  idCl = s2[2]
+}
+
+
+$2 ~ /NIF/{
+  nif = $3
+}
+
+
+$2 ~ /NOME/{
+  nome = $3
+}
+
+
+$2 ~ /MORADA/{
+  morada = $3
+}
+
+
+$2 ~ /LOCALIDADE/{
+  localidade = $3
+}
+
+
+$2 ~ /CODIGO_POSTAL/{
+  codigo = $3
+}
+
+
+$2 ~ /IDENTIFICADOR id/{
+  split($2,s2,"\"")
+  idId = s2[2]
+}
+
+
+$2 ~ /MATRICULA/{
+  matricula = $3
+}
+
+
+$2 ~ /REF_PAGAMENTO/{
+  refPagamento = $3
+}
+
+
+$2 ~ /DATA_ENTRADA/ {
+  if($3 ~ "[^a-z]") {
+    entradas[$3]++
+  }
+  dataEntrada = $3
+}
+
+
+$2 ~ /OPERADOR/ && horaEntrada != "" && dataEntrada != "null" {
+  if(entrada == "") entrada = "Desconhecido"
+  ent[idx] = entrada
+  saidas[idx] = saida
+  operadores[idx] = $3
+  precos[ent[idx] saidas[idx] operadores[idx]] += preco
+  relationString[ent[idx] saidas[idx] operadores[idx]]++
+  infoEntradas[idx] = dataEntrada "'" entrada "'" saida "'" $3 "'" horaEntrada
+  idx++
+}
+
+
+$2 ~ /IMPORTANCIA/ {
+  gsub(",", ".", $3)
+  preco = $3
+}
+
+
+$2 == "ENTRADA" {
+  entrada = $3
+}
+
+
+$2 == "SAIDA" {
+  saida = $3
+  saidasInfo[$3]++
+}
+
+
+$2 ~ /TIPO/ {
+  tipos[$3]+=preco
+  tipos["Total"]+=preco
+}
+
+
+$2 ~ /HORA_ENTRADA/ {
+  horaEntrada = $3;
+}
+
+# ENTRADA SAIDA OPERADOR VEZES
+END {
+  for(i in entradas) {
+    split(i, n, "-")
+    t = n[3] "-" n[2] "-" n[1]
+    tempEntradas[t] = entradas[i]
+  }
+
+  printInfoData()
+  printInfoMatriculaHTML()
+  printEntradasHTML()
+  printTotalHTML()
+  printRelationsHTML()
+  printInfoSaidas()
+  printIndexHTML()
+
+  printEntradas()
+  print "Ficheiros HTML criados com sucesso! (Abrir index.html)"
+}
+
+
+function printIndexHTML() {
+  printf(enc,"Extracto ViaVerde") > "index.html"
+  print "<script>function open0() { document.getElementById(\"frame\").src=\"" matricula ".html\"; }" > "index.html"
+  print "function open1() { document.getElementById(\"frame\").src=\"entradas.html\"; }" > "index.html"
+  print "function open2() { document.getElementById(\"frame\").src=\"totais.html\"; }" > "index.html"
+  print "function open3() { document.getElementById(\"frame\").src=\"relations.html\"; }" > "index.html"
+  print "function open4() { document.getElementById(\"frame\").src=\"saidas.html\"; }</script>" > "index.html"
+  print "<ul>" > "index.html"
+  print "<h1> Extracto do Mês " mes " da Matricula " matricula "</h1>" > "index.html"
+  print "<a href='https://www.viaverde.pt'> <img class=\"size_image\" src = \"viaverde.png\"/></a>" > "index.html"
+
+  print "<li> <a onClick=open0()> Informações da Matrícula</a></li>" > "index.html"
+  print "<li> <a onClick=open1()> Número de entradas por dia</a></li>" > "index.html"
+  print "<li> <a onClick=open2()> Total Pago</a></li>" > "index.html"
+  print "<li> <a onClick=open3()> Dados gerais</a></li>" > "index.html"
+  print "<li> <a onClick=open4()> Locais de Saída</a></li>" > "index.html"
+
+  print "</ul>" > "index.html"
+  print "<iframe id=frame width=100% scrolling=\"yes\" src=\"\" display=\"none\" frameborder=\"0\"></iframe>" > "index.html"
+  print end > "index.html"
+}
+
+function printInfoSaidas(){
+	printf(enc, "Locais de Saída") > "saidas.html"
+    print "<h2> Locais de Saida </h2>" > "saidas.html"
+    print "<table style=\"width:25%\">" > "saidas.html"
+    print "<tr><th><b>Saídas</b></th><th><b>Nº de Saídas</b></th></tr>" > "saidas.html"
+    for(i in saidasInfo){
+    	    print "<tr><td>" saidasInfo[i] "</td><td>" i "</td></tr>" > "saidas.html"
+
+    }
+    print "</table>" end > "saidas.html"
+
+
+}
+
+
+function printInfoData(){
+  for(i in entradas){
+    printf(enc,i) > i ".html"
+    print "<h2> Viagens da Data " i " da Matricula " matricula "</h2>" > i ".html"
+    print "<table style=\"width:100%\">" > i ".html"
+    print "<tr><th><b>Entrada</b></th> <th><b>Saída</b></th> <th><b>Operador</b></th> <th><b>Hora de Entrada</b></th></tr>" > i ".html"
+  }
+  #informações sobre as viagens todas
+  printf(enc,"Viagens") > "totVa" matricula ".html"
+  print "<h2> Todas as Viagens da Matricula " matricula "</h2>" > "totVa" matricula ".html"
+  print "<table style=\"width:100%\">" > "totVa" matricula ".html"
+  print "<tr><th><b>Entrada</b></th> <th><b>Saída</b></th> <th><b>Operador</b></th> <th><b>Data</b></th> <th><b>Hora de Entrada</b></th></tr>" > "totVa" matricula ".html"
+  for(i in infoEntradas){
+    split(infoEntradas[i],s2,"'")
+    print "<tr><td>" s2[2] "</td> <td>" s2[3] "</td> <td>" s2[4] "</td> <td>" s2[5] "</td></tr>" > s2[1] ".html"
+    print "<tr><td>" s2[2] "</td> <td>" s2[3] "</td> <td>" s2[4] "</td> <td>" s2[1] "</td> <td>" s2[5] "</td></tr>" > "totVa" matricula ".html"
+  }
+  for(i in entradas)
+    print "</table>" end > i ".html"
+}
+
+
+function printTotalHTML() {
+  printf (enc,"Gastos") > "totais.html"
+  print "<h2> Total Gasto no Mês " mes "</h2>" > "totais.html"
+  print "<table style=\"width:30%\">" > "totais.html"
+  print "<tr><th><b>Tipo</b></th> <th><b>Gastos</b></th></tr>" > "totais.html"
+  for(i in tipos)
+    if(i!="Total")
+      print "<tr><td>"i"</td><td>" tipos[i] "€</td></tr>" > "totais.html"
+  print "<tr><td><b>Total</b></td><td>" tipos["Total"] "€</td></tr>" > "totais.html"
+  print end > "totais.html"
+}
+
+
+function printEntradasHTML() {
+  printf (enc, "Entradas") > "entradas.html"
+  print "<h2>Número de Entradas no Mês " mes "</h2>" > "entradas.html"
+  print "<table style=\"width:30%\">" > "entradas.html"
+  print "<tr><th><b>Data</b></th> <th><b>Nº de Entradas</b></th></tr>" > "entradas.html"
+
+  asorti(tempEntradas)
+  for(i in tempEntradas) {
+    split(tempEntradas[i], n2, "-")
+    t = n2[3] "-" n2[2] "-" n2[1]
+
+    tot += entradas[t]
+    print "<tr><td>" t "</td> <td><a href=" t ".html>" entradas[t] "</a></td></tr>" > "entradas.html"
+  }
+
+  print "<tr><td><b>Total</b></td> <td><b><a href= totVa" matricula ".html>" tot "</a></b></td></tr></table>" > "entradas.html"
+  print end > "entradas.html"
+}
+
+function printRelationsHTML(){
+  printf (enc, "Relações") > "relations.html"
+  print "<h2>Informações Gerais no Mês " mes "</h2>" > "relations.html"
+  print "<table style=\"width:80%\">" > "relations.html"
+  print "<tr><th><b>Entrada</b></th> <th><b>Saída</b></th> <th><b>Operador</b></th> <th><b>Frequência</b></th> <th><b>Gasto</b></th> <th><b>Percurso</b></th></tr>" > "relations.html"
+
+  for(i in ent) {
+    if(relationString[ent[i] saidas[i] operadores[i]] > 0) {
+      entr = ent[i]
+      said = saidas[i]
+      gsub(" ", "+",entr)
+      gsub(" ", "+",said)
+      gsub("/", "-", entr)
+      gsub("/", "-", said)
+      linkdir = "<a onclick=window.open(\"https://www.google.pt/maps/dir/"entr"/"said"\")><font color=blue> Visualizar </font></a>"
+      if(entr == "Desconhecido"){
+      	linkdir ="Não Disponível"
+      }
+      if(entr ~ /EN/ || said ~ /EN/){
+      	linkdir = "Nao Disponivel"
+      }
+      print "<tr><td>" ent[i] "</td> <td>" saidas[i] "</td> <td>" operadores[i] "</td> <td>" relationString[ent[i] saidas[i] operadores[i]]"</td> <td>" precos[ent[i] saidas[i] operadores[i]]"€</td> <td>"linkdir"</tr>" > "relations.html"
+      relationString[ent[i] saidas[i] operadores[i]] = 0
+    }
+  }
+  print "</table>" end > "relations.html"
+}
+
+function printInfoMatriculaHTML(){
+  printf (enc, "Ficha Cliente") > matricula ".html"
+  print "<h2>Ficha Cliente da Matrícula " matricula " no Mês " mes "</h2>" > matricula ".html"
+  print "<table style=\"width:60%\">" > matricula ".html"
+  print "<tr><td><b>Extracto id</b></td><td>" extracto "</td></tr>" > matricula ".html"
+  print "<tr><td><b>Cliente id</b></td><td>" idCl "</td></tr>" > matricula ".html"
+  print "<tr><td><b>NIF</b></td><td>" nif "</td></tr>" > matricula ".html"
+  print "<tr><td><b>Nome</b></td><td>" nome "</td></tr>" > matricula ".html"
+  print "<tr><td><b>Morada</b></td><td>" morada "</td></tr>" > matricula ".html"
+  print "<tr><td><b>Localidade</b></td><td>" localidade "</td></tr>" > matricula ".html"
+  print "<tr><td><b>Código Postal</b></td><td>" codigo "</td></tr>" > matricula ".html"
+  print "<tr><td><b>Identificador id</b></td><td>" idId "</td></tr>" > matricula ".html"
+  print "<tr><td><b>Referência do Pagamento</b></td><td>" refPagamento "</td></tr></table>" > matricula ".html"
+  print end > matricula ".html"
+}
+
+
+
+function printEntradas() {
+  print "╔═══════════════╦═══════════════════════╗"
+  print "║ Dia           ║ Nº de entradas        ║"
+  print "╠═══════════════╬═══════════════════════╣"
+
+  tot = 0
+  for(i in tempEntradas) {
+    split(tempEntradas[i], n2, "-")
+    t = n2[3] "-" n2[2] "-" n2[1]
+
+    tot += entradas[t]
+    print "║ " t "\t║ " entradas[t] "\t\t\t║"
+  }
+
+  print "╠═══════════════╬═══════════════════════╣"
+  print "║ Total: \t" "║ " tot "\t\t\t║"
+  print "╚═══════════════╩═══════════════════════╝"
+  print ""
+}
